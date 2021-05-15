@@ -91,8 +91,8 @@ class LinearRegression:
             predicted = np.dot(self.X, self.theta)
             error = predicted - self.Y
             gradient = self.get_stochastic_gradient(self.X, mini_batch, error)
-            momentum = gamma * momentum + eta * gradient
-            self.theta = self.theta - momentum
+            momentum = gamma * momentum + (1 - gamma) * gradient
+            self.theta = self.theta - eta * momentum
             error = (np.dot(np.transpose(error), error)) / len(X)
             previous_theta.append(self.theta)
             previous_error.append(error[0])
@@ -156,12 +156,13 @@ class LinearRegression:
 
 
 
-    def train(self, epochs, eta):
+    def train(self, epochs, eta, mini_bacth=70):
         self.epochs = epochs
+        self.mini_bacth = mini_bacth
         if self.optimizer == "GD":
             self.history = self.GradientDecesent(epochs, eta)
         elif self.optimizer == "Momentum":
-            self.history = self.Momentum(epochs, eta, 0.9)
+            self.history = self.Momentum(epochs, eta, 0.9, mini_bacth)
         elif self.optimizer == "RMSP":
             self.history = self.RMSProp(epochs, eta, 0.9)
         elif self.optimizer == "Adagrad":
@@ -176,7 +177,7 @@ class LinearRegression:
         predicted = np.dot(X, self.theta)
         net_error = predicted - Y
         net_error = (2 / len(X)) * np.dot(np.transpose(net_error), net_error)
-        print("Error = ", net_error[0][0])
+        print("Error for {} = {}".format(self.optimizer, net_error[0][0]))
         return predicted
 
     def show_transition(self):
@@ -214,25 +215,6 @@ class LinearRegression:
         plt.plot(self.X[:, 0], predicted)
         plt.show()
 
-
-from sklearn.model_selection import train_test_split
-
-dataset = linear_dataset(2, 3, 300, 4.5)
-features = np.array([[2], [3]])
-X = dataset[:, 0]
-Y = dataset[:, 1]
-X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.30, random_state=42)
-obj = LinearRegression("Adam")
-obj.fit(X_train, y_train)
-obj.train(150, 0.1)
-obj.show_transition()
-obj.show_lossCurve()
-history = obj.getHistory()
-obj.show_weightTransition()
-obj.final_fit()
-predicted = obj.predict(X_test, y_test)
-
-
 class Visualize:
     def __init__(self, loss_fun='MSE', features=None, plot_transition=False, history=None):
         self.features = features
@@ -241,6 +223,7 @@ class Visualize:
         self.theta1 = None
         self.theta2 = None
         self.error = None
+        self.history = history
 
     def mean_sqr_error(self, x, y, x_axis, y_axis):
         z_axis = [[0] * 100] * 100
@@ -265,7 +248,7 @@ class Visualize:
             ax.contour3D(x_axis, y_axis, z_axis, res)
             ax.view_init(hzr_angle, ver_angle)
 
-    def plot(self, type_=None, res=100, hzr_angle=None, ver_angle=None):
+    def plot(self, type_=None, res=5000, hzr_angle=None, ver_angle=None):
         x = np.arange(-1, 1, 0.1)
         x = np.c_[x, np.ones((len(x), 1))]
         y = np.dot(x, features)
@@ -277,8 +260,8 @@ class Visualize:
         if self.loss_fun == 'MSE':
             z_axis = self.mean_sqr_error(x, y, x_axis, y_axis)
             if self.plot_transition:
-                weight = history[0]
-                error = history[1]
+                weight = self.history[0]
+                error = self.history[1]
                 weight = np.array(weight).reshape(len(weight), 2)
                 theta1 = []
                 theta2 = []
@@ -289,61 +272,109 @@ class Visualize:
                 self.theta1 = theta1
                 self.theta2 = theta2
                 self.error = error
-            if self.plot_transition:
                 ax = plt.axes(projection='3d')
                 ax.scatter3D(self.theta1, self.theta2, self.error)
                 return
             self.plot_type(type_, res, hzr_angle, ver_angle, x_axis, y_axis, z_axis)
 
 
-viz = Visualize(features=features, plot_transition=True, history=history)
-viz.plot()
 
-"""
-=========TEST==========
 
-weight = history[0]
-error = history[1]
-weight = np.array(weight).reshape(len(weight), 2)
-theta1 = []
-theta2 = []
-for cordi in weight:
-    theta1.append(cordi[0])
-    theta2.append(cordi[1])
-error = np.array(error).reshape(len(error), )
+from sklearn.model_selection import train_test_split
 
-ax = plt.axes(projection='3d')
-ax.scatter3D(theta1, theta2, error, c='black')
-# ax.set_xlim3d(0, 30)
+ITERATIONS = 100
 
-print(theta1)
-print(theta2)
-print(error)
+dataset = linear_dataset(2, 3, 300, 4.5)
+features = np.array([[2], [3]])
+X = dataset[:, 0]
+Y = dataset[:, 1]
+X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.30, random_state=42)
 
-dim = []
-dim.append(np.arange(-50, 50))
-dim.append(np.arange(-50, 50))
-xax, yax = np.meshgrid(dim[0], dim[1])
-x = np.arange(-1, 1, 0.1)
-x = np.c_[x, np.ones((len(x), 1))]
-y = np.dot(x, features)
-z_axis = [[0] * 100] * 100
-for i in range(0, 100):
-    for j in range(0, 100):
-        cordinates = [[xax[i][j]], [yax[i][j]]]
-        # print(xax[i][j], yax[i][j])
-        predict = np.dot(x, cordinates)
-        error = predict - y
-        error = (2 / len(x)) * np.dot(np.transpose(error), error)
-        print("zax is {} {} {}".format(xax[i][j], yax[i][j], error[0][0]))
-        z_axis[i][j] = error[0][0]
-z_axis = np.array(z_axis)
+#Gadient Descent
+obj = LinearRegression("GD")
+obj.fit(X_train, y_train)
+obj.train(ITERATIONS, 0.1)
+obj.show_transition()
+obj.show_lossCurve()
+historyGD = obj.getHistory()
+obj.show_weightTransition()
+obj.final_fit()
+predicted = obj.predict(X_test, y_test)
 
-ax = plt.axes(projection='3d')
-ax.contour3D(xax, yax, z_axis, 100)
+#Momentum
+obj = LinearRegression("Momentum")
+obj.fit(X_train, y_train)
+obj.train(ITERATIONS, 0.2, 70)
+obj.show_transition()
+obj.show_lossCurve()
+historyMomentum = obj.getHistory()
+obj.show_weightTransition()
+obj.final_fit()
+predicted = obj.predict(X_test, y_test)
 
-error = np.dot(x, [[4], [5]]) - y
-error = 2 * np.dot(np.transpose(error), error) / len(x)
-ax.scatter3D([4], [5], error)
+#RMSP
+obj = LinearRegression("RMSP")
+obj.fit(X_train, y_train)
+obj.train(ITERATIONS, 0.2)
+obj.show_transition()
+obj.show_lossCurve()
+historyRMSP = obj.getHistory()
+obj.show_weightTransition()
+obj.final_fit()
+predicted = obj.predict(X_test, y_test)
 
-"""
+#Adagrad
+obj = LinearRegression("Adagrad")
+obj.fit(X_train, y_train)
+obj.train(ITERATIONS, 4)
+obj.show_transition()
+obj.show_lossCurve()
+historyAda = obj.getHistory()
+obj.show_weightTransition()
+obj.final_fit()
+predicted = obj.predict(X_test, y_test)
+
+#Adam
+obj = LinearRegression("Adam")
+obj.fit(X_train, y_train)
+obj.train(ITERATIONS, 2)
+obj.show_transition()
+obj.show_lossCurve()
+historyAdam = obj.getHistory()
+obj.show_weightTransition()
+obj.final_fit()
+predicted = obj.predict(X_test, y_test)
+
+
+#Comparision based on error
+error_by_algo = historyGD[1]
+plt.plot(np.arange(1, ITERATIONS+1), error_by_algo, c='blue')
+
+error_by_algo = historyMomentum[1]
+plt.plot(np.arange(1, ITERATIONS+1), error_by_algo, c='yellow')
+
+error_by_algo = historyRMSP[1]
+plt.plot(np.arange(1, ITERATIONS+1), error_by_algo, c='red')
+
+error_by_algo = historyAda[1]
+plt.plot(np.arange(1, ITERATIONS+1), error_by_algo, c='black')
+
+error_by_algo = historyAdam[1]
+plt.plot(np.arange(1, ITERATIONS+1), error_by_algo, c='green')
+
+plt.legend(["GradientDescent", "Momentum", "RMSProp", "Adagrad", "Adam"])
+
+viz = Visualize(features=features, plot_transition=True, history=historyGD)
+viz.plot(type_='3d')
+
+viz = Visualize(features=features, plot_transition=True, history=historyMomentum)
+viz.plot(type_='3d')
+
+viz = Visualize(features=features, plot_transition=True, history=historyRMSP)
+viz.plot(type_='3d')
+
+viz = Visualize(features=features, plot_transition=True, history=historyAda)
+viz.plot(type_='3d')
+
+viz = Visualize(features=features, plot_transition=True, history=historyAdam)
+viz.plot(type_='3d')
