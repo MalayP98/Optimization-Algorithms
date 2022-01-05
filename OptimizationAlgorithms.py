@@ -1,13 +1,10 @@
 import numpy as np
-import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 import warnings
-from mpl_toolkits import mplot3d
 
 matplotlib.use('TKAgg')
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
 
 def linear_dataset(slope, intercept, size, noise):
     x = np.random.uniform(1, 10, size=size)
@@ -15,13 +12,22 @@ def linear_dataset(slope, intercept, size, noise):
     dataset = np.concatenate((x.reshape(size, 1), y.reshape(size, 1)), axis=1)
     return dataset
 
+def train_test_split(input, target, ratio):
+    shuffle_indices = np.random.permutation(input.shape[0])
+    test_size = int(input.shape[0] * ratio)
+    train_indices = shuffle_indices[:test_size]
+    test_indices = shuffle_indices[test_size:]
+    xTrain = input[train_indices]
+    yTrain = target[train_indices]
+    xTest = input[test_indices]
+    yTest = target[test_indices]
+    return xTrain, yTrain, xTest, yTest
 
 def scale(data):
     for i in range(data.shape[1]):
         col_i = data[:, i]
         data[:, i] = (col_i - min(col_i)) / (max(col_i) - min(col_i))
     return data
-
 
 class LinearRegression:
 
@@ -31,6 +37,7 @@ class LinearRegression:
  
     a) exponetially decreasing 
     b) polynomially decreasing
+    c) Constant
     """
         self.history = None
         self.optimizer = optimizer
@@ -102,14 +109,13 @@ class LinearRegression:
     def RMSProp(self, epochs, eta, beta, mini_batch=70):
         previous_theta = []
         previous_error = []
-        moving_avg = np.array([0] * len(self.theta))
-        moving_avg = moving_avg.reshape(len(moving_avg), 1)
+        moving_avg = 0
         for epoch in range(1, epochs + 1):
             predicted = np.dot(self.X, self.theta)
             error = predicted - self.Y
             gradient = self.get_stochastic_gradient(self.X, mini_batch, error)
-            moving_avg = beta * moving_avg + (1 - beta) * (gradient ** 2)
-            self.theta = self.theta - (eta / (moving_avg ** 0.5)) * gradient
+            moving_avg = beta * moving_avg + (1 - beta) * gradient**2
+            self.theta = self.theta - ((eta * gradient) / (moving_avg ** 0.5))
             error = (np.dot(np.transpose(error), error)) / len(X)
             previous_theta.append(self.theta)
             previous_error.append(error[0])
@@ -119,14 +125,13 @@ class LinearRegression:
     def Adagrad(self, epochs, eta, mini_batch=70):
         previous_theta = []
         previous_error = []
-        moving_avg = np.array([0] * len(self.theta))
-        moving_avg = moving_avg.reshape(len(moving_avg), 1)
+        moving_avg = 0
         for epoch in range(1, epochs+1):
             predicted = np.dot(self.X, self.theta)
             error = predicted - self.Y
             gradient = self.get_stochastic_gradient(self.X, mini_batch, error)
             moving_avg = moving_avg + gradient**2
-            self.theta = self.theta - (eta / (moving_avg ** 0.5)) * gradient
+            self.theta = self.theta - ((eta * gradient) / (moving_avg ** 0.5))
             error = (np.dot(np.transpose(error), error)) / len(X)
             previous_theta.append(self.theta)
             previous_error.append(error[0])
@@ -136,10 +141,8 @@ class LinearRegression:
     def Adam(self, epochs, eta, beta1, beta2, mini_batch=70):
         previous_theta = []
         previous_error = []
-        moving_avg_1 = np.array([0] * len(self.theta))
-        moving_avg_1 = moving_avg_1.reshape(len(moving_avg_1), 1)
-        moving_avg_2 = np.array([0] * len(self.theta))
-        moving_avg_2 = moving_avg_2.reshape(len(moving_avg_2), 1)
+        moving_avg_1 = 0
+        moving_avg_2 = 0
         for epoch in range(1, epochs+1):
             predicted = np.dot(self.X, self.theta)
             error = predicted - self.Y
@@ -277,18 +280,13 @@ class Visualize:
                 return
             self.plot_type(type_, res, hzr_angle, ver_angle, x_axis, y_axis, z_axis)
 
-
-
-
-from sklearn.model_selection import train_test_split
-
 ITERATIONS = 100
 
 dataset = linear_dataset(2, 3, 300, 4.5)
 features = np.array([[2], [3]])
 X = dataset[:, 0]
 Y = dataset[:, 1]
-X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.30, random_state=42)
+X_train, y_train, X_test, y_test = train_test_split(X, Y, .3)
 
 #Gadient Descent
 obj = LinearRegression("GD")
@@ -326,7 +324,7 @@ predicted = obj.predict(X_test, y_test)
 #Adagrad
 obj = LinearRegression("Adagrad")
 obj.fit(X_train, y_train)
-obj.train(ITERATIONS, 4)
+obj.train(ITERATIONS, 0.2)
 obj.show_transition()
 obj.show_lossCurve()
 historyAda = obj.getHistory()
@@ -344,7 +342,6 @@ historyAdam = obj.getHistory()
 obj.show_weightTransition()
 obj.final_fit()
 predicted = obj.predict(X_test, y_test)
-
 
 #Comparision based on error
 error_by_algo = historyGD[1]
